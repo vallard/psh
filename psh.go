@@ -1,84 +1,105 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
-	"os/user"
 	"strings"
 
+	"golang.org/x/crypto/ssh"
+
+	"github.com/vallard/psh/nr"
 	"github.com/vallard/psh/server"
 )
 
-var configFiles = []string{
-	"~/.psh",
-}
-
-var usr, _ = user.Current()
-var dir = usr.HomeDir
-
 func errorFunction(errMessage string) {
 	fmt.Printf("%s\n", errMessage)
-	panic(1)
+	os.Exit(1)
+}
+
+// prints the usage of the tool and exits with the value past in.
+func useage(rc int) {
+	fmt.Printf("psh <noderange> command args args ...\n")
+	os.Exit(rc)
 }
 
 func main() {
+	if len(os.Args) < 2 {
+		useage(1)
+	}
 
 	// the first argument is the range or group of nodes
-	nodes := getNodeRange(os.Args[1])
-
-	// open the file for ssh stuff.
-	cmd := getCommand(os.Args[2:])
-	fmt.Printf("Running command: %s", cmd)
-	servers, err := openConfig()
+	nodes, err := nr.GetNodeRange(os.Args[1])
 	if err != nil {
 		errorFunction(err.Error())
 	}
 
-	for _, server := range servers {
+	// open the file for ssh stuff.
+	cmd := getCommand(os.Args[2:])
+	fmt.Printf("Running command: %s\n", cmd)
+
+	ch := make(chan string)
+	for _, server := range nodes {
 		fmt.Println(server.Host)
+		go runcmd(server, cmd, ch)
 	}
 
+	for range nodes {
+		fmt.Println(<-ch)
+	}
+}
+
+func runcmd(server server.Server, cmd string, ch chan<- string) {
+	sshConfig := &ssh.ClientConfig{
+		User: server.User,
+		Auth: []ssh.AuthMethod{
+			PublicKeyFile(server.Key),
+		},
+	}
+
+	// create connection
+	s := getServerAndPort(server)
+	connection, err := ssh.Dial("tcp", s, sshConfig)
+	if err != nil {
+		ch <- fmt.Sprint(err)
+		return
+	}
+
+	// create session
+	session, err := connection.NewSession()
+	if err != nil {
+		ch <- fmt.Sprint(err)
+		return
+	}
+	log.Printf("Running command on %s", server.IP)
+	session.Run(cmd)
+}
+
+func getServerAndPort(server server.Server) string {
+	if strings.Contains(server.IP, ":") {
+		return server.IP
+	}
+	s := []string{server.IP, "22"}
+	return strings.Join(s, ":")
+}
+
+// get the key file. cred: http://blog.ralch.com/tutorial/golang-ssh-connection/
+func PublicKeyFile(file string) ssh.AuthMethod {
+	file = nr.ExpandShell(file)
+	buffer, err := ioutil.ReadFile(file)
+	if err != nil {
+		return nil
+	}
+
+	key, err := ssh.ParsePrivateKey(buffer)
+	if err != nil {
+		return nil
+	}
+	return ssh.PublicKeys(key)
 }
 
 // get the command from the command line
 func getCommand(arr []string) string {
 	return strings.Join(arr, " ")
-}
-
-// substitute params for files
-func expandShell(f string) string {
-	f = strings.Replace(f, "~", dir, 1)
-	return f
-}
-
-// open the config file and return all the servers from it.
-func openConfig() ([]server.Server, error) {
-	// look for config file
-	var servers []server.Server
-	for _, filename := range configFiles {
-		// expand shell params
-		filename = expandShell(filename)
-		file, err := os.Open(filename)
-		if err != nil {
-			return nil, err
-		}
-
-		defer file.Close()
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			server, err := parseLine(scanner.Text())
-			if err != nil {
-				continue
-			}
-			servers = append(servers, server)
-		}
-	}
-	return servers, nil
-}
-
-func parseLine(str string) (server.Server, error) {
-	params := strings.Split(str, ",")
-	s := server.Server{Host: params[0], User: params[1], Key: params[2]}
-	return s, nil
 }

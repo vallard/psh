@@ -1,5 +1,0 @@
-package noderange
-
-func getNodeRange() {
-
-}
