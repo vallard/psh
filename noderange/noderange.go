@@ -1,0 +1,5 @@
+package noderange
+
+func getNodeRange() {
+
+}
