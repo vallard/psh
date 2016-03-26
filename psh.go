@@ -1,9 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"strings"
 
@@ -37,11 +37,11 @@ func main() {
 
 	// open the file for ssh stuff.
 	cmd := getCommand(os.Args[2:])
-	fmt.Printf("Running command: %s\n", cmd)
+	//fmt.Printf("Running command: %s\n", cmd)
 
 	ch := make(chan string)
 	for _, server := range nodes {
-		fmt.Println(server.Host)
+		//fmt.Println(server.Host)
 		go runcmd(server, cmd, ch)
 	}
 
@@ -72,8 +72,57 @@ func runcmd(server server.Server, cmd string, ch chan<- string) {
 		ch <- fmt.Sprint(err)
 		return
 	}
-	log.Printf("Running command on %s", server.IP)
-	session.Run(cmd)
+	defer session.Close()
+	// create terminal
+	/*
+		modes := ssh.TerminalModes{
+			ssh.ECHO:          0,
+			ssh.TTY_OP_ISPEED: 14400,
+			ssh.TTY_OP_OSPEED: 14400,
+		}
+			if err = session.RequestPty("xterm", 80, 40, modes); err != nil {
+				session.Close()
+				ch <- fmt.Sprintf("request for pseudo terminal failed: %s", err)
+				return
+			}
+	*/
+	var stdoutBuff bytes.Buffer
+	//stdout, err := session.StdoutPipe()
+	session.Stdout = &stdoutBuff
+
+	// copy pipe stuff
+	/*stdin, err := session.StdinPipe()
+	if err != nil {
+		//ch <- fmt.Errorf("Unable to setup stdin for session: %v", err)
+		ch <- fmt.Sprintf("Unable to setup stdin for session: %v", err)
+		return
+	}
+	go io.Copy(stdin, os.Stdin)
+
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		//ch <- fmt.Errorf("Unable to setup stdout for session: %v", err)
+		ch <- fmt.Sprintf("Unable to setup stdout for session: %v", err)
+		return
+	}
+	go io.Copy(os.Stdout, stdout)
+
+	stderr, err := session.StderrPipe()
+	if err != nil {
+		//ch <- fmt.Errorf("Unable to setup stderr for session: %v", err)
+		ch <- fmt.Sprintf("Unable to setup stderr for session: %v", err)
+		return
+	}
+	go io.Copy(os.Stderr, stderr)
+	*/
+	//log.Printf("Running command on %s", server.IP)
+	err = session.Run(cmd)
+	if err != nil {
+		ch <- fmt.Sprintf("Unable to setup stderr for session: %v", err)
+	} else {
+		ch <- server.Host + ": " + stdoutBuff.String()
+	}
+	return
 }
 
 func getServerAndPort(server server.Server) string {
