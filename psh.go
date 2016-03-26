@@ -46,7 +46,7 @@ func main() {
 	}
 
 	for range nodes {
-		fmt.Println(<-ch)
+		fmt.Print(<-ch)
 	}
 }
 
