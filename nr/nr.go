@@ -79,7 +79,7 @@ func nodesFromConfig() ([]server.Server, error) {
 		for scanner.Scan() {
 			server, err := parseLine(scanner.Text())
 			if err != nil {
-				continue
+				return servers, err
 			}
 			servers = append(servers, server)
 		}
@@ -114,12 +114,7 @@ func parseLine(str string) (server.Server, error) {
 		s.User = params[2]
 		s.Key = params[3]
 	}
-	if s.IP == "" {
-		return s, nil
-	}
-	if s.IP != "" && validIP4(s.IP) {
-		return s, nil
-	} else {
+	if s.IP != "" && !validIP4(s.IP) {
 		e := fmt.Sprintf("IP address is not valid for %s", s.Host)
 		return s, errors.New(e)
 	}
