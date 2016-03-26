@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"regexp"
 	"strings"
 
 	"github.com/vallard/psh/server"
@@ -18,7 +19,9 @@ var configFiles = []string{
 	"~/.psh",
 }
 
-// public function to get the noderange from the config file for a bunch of nodes.
+// GetNodeRange gets the list of servers from an encoded string of nodes.
+// The node input is a string like node01-node99.  GetNodeRange will return
+// all of the nodes in Server objects.  node01, node02, ... node99
 func GetNodeRange(nr string) ([]server.Server, error) {
 	elems := strings.Split(nr, ",")
 	nodelist, err := nodesFromConfig()
@@ -86,6 +89,49 @@ func nodesFromConfig() ([]server.Server, error) {
 
 func parseLine(str string) (server.Server, error) {
 	params := strings.Split(str, ",")
-	s := server.Server{Host: params[0], IP: params[1], User: params[2], Key: params[3]}
+	s := server.Server{}
+	l := len(params)
+	switch {
+	case l < 1:
+		return s, errors.New("Invalid line in config file")
+	case l < 2:
+		s.Host = params[0]
+	case l < 3:
+		s.Host = params[0]
+		s.IP = params[1]
+	case l < 4:
+		s.Host = params[0]
+		s.IP = params[1]
+		s.User = params[2]
+	case l < 5:
+		s.Host = params[0]
+		s.IP = params[1]
+		s.User = params[2]
+		s.Key = params[3]
+	case l > 4:
+		s.Host = params[0]
+		s.IP = params[1]
+		s.User = params[2]
+		s.Key = params[3]
+	}
+	if s.IP == "" {
+		return s, nil
+	}
+	if s.IP != "" && validIP4(s.IP) {
+		return s, nil
+	} else {
+		e := fmt.Sprintf("IP address is not valid for %s", s.Host)
+		return s, errors.New(e)
+	}
 	return s, nil
+}
+
+// from: https://www.socketloop.com/tutorials/golang-validate-ip-address
+func validIP4(ipAddress string) bool {
+	ipAddress = strings.Trim(ipAddress, " ")
+	re, _ := regexp.Compile(`^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$`)
+	if re.MatchString(ipAddress) {
+		return true
+	}
+	return false
 }

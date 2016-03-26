@@ -1,0 +1,4 @@
+node01,1.2.3.1,root,~/.ssh/key,alpha,beta,gama,epsilon
+node02,1.2.3.2,root,~/.ssh/key,alpha,beta,gama,epsilon
+node03,1.2.3.3,root,~/.ssh/key,alpha,beta,gama,epsilon
+node04,1.2.3.4,root,~/.ssh/key,alpha,beta,gama,epsilon
