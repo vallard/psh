@@ -33,15 +33,17 @@ func GetNodeRange(nr string) ([]server.Server, error) {
 	// first seperate by commas
 	elems := strings.Split(nr, ",")
 	// next expand range with -, eg: node01-node99
+	var telems []string
 	for _, e := range elems {
-		elems, err = nodesFromDash(e)
+		newRange, err := nodesFromDash(e)
 		//fmt.Println(elems)
 		if err != nil {
 			return []server.Server{}, err
 		}
+		telems = append(telems, newRange...)
 	}
 
-	returnNodes, err := findNodesInList(elems, nodelist)
+	returnNodes, err := findNodesInList(telems, nodelist)
 	if err != nil {
 		return nil, err
 	}
