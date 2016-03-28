@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/user"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/vallard/psh/server"
@@ -23,10 +24,21 @@ var configFiles = []string{
 // The node input is a string like node01-node99.  GetNodeRange will return
 // all of the nodes in Server objects.  node01, node02, ... node99
 func GetNodeRange(nr string) ([]server.Server, error) {
-	elems := strings.Split(nr, ",")
+	// get all the nodes in the config file.
 	nodelist, err := nodesFromConfig()
 	if err != nil {
 		return nil, err
+	}
+
+	// first seperate by commas
+	elems := strings.Split(nr, ",")
+	// next expand range with -, eg: node01-node99
+	for _, e := range elems {
+		elems, err = nodesFromDash(e)
+		//fmt.Println(elems)
+		if err != nil {
+			return []server.Server{}, err
+		}
 	}
 
 	returnNodes, err := findNodesInList(elems, nodelist)
@@ -36,9 +48,75 @@ func GetNodeRange(nr string) ([]server.Server, error) {
 	return returnNodes, nil
 }
 
+// nodesFromDash separates a string like node01-node04 and gives back
+// an array of node01,node02,node03,node04
+// see line 376 and on of:
+// https://sourceforge.net/p/xcat/xcat-core/ci/master/tree/perl-xCAT/xCAT/NodeRange.pm
+func nodesFromDash(e string) ([]string, error) {
+	var nodes []string
+	// m/[-:]/
+	r := regexp.MustCompile("[-:]")
+	if r.MatchString(e) {
+		nodeParts := r.Split(e, -1)
+		if len(nodeParts) != 2 {
+			eMsg := fmt.Sprintf("Invalid noderange: %s\n", e)
+			return nodes, errors.New(eMsg)
+		}
+		ne := regexp.MustCompile("[0-9]+")
+		fn := ne.FindString(nodeParts[0])
+		fIndex := ne.FindStringSubmatchIndex(nodeParts[0])
+		sn := ne.FindString(nodeParts[1])
+		sIndex := ne.FindStringSubmatchIndex(nodeParts[1])
+		// make sure the prefix is the same, so numbers start at same place.
+		if fIndex[0] != sIndex[0] {
+			eMsg := fmt.Sprintf("Invalid noderange: %s\n", e)
+			return nodes, errors.New(eMsg)
+		}
+		//fmt.Println(fIndex[1])
+		fPrefix := nodeParts[0][0:fIndex[0]]
+		//fmt.Printf("Prefix: %s\n", fPrefix)
+		sPrefix := nodeParts[0][0:sIndex[0]]
+		// if they put in: node01-mode03 this doesn't work.
+		if sPrefix != fPrefix {
+			eMsg := fmt.Sprintf("Invalid noderange: %s\n", e)
+			return nodes, errors.New(eMsg)
+		}
+		//prefix := nodeParts[0][
+		// TODO: add support for n20r01-n21-r40
+		if fn == "" || sn == "" {
+			eMsg := fmt.Sprintf("Invalid noderange: %s\n", e)
+			return nodes, errors.New(eMsg)
+		}
+		// if for some reason they said node1-node1 return one node.
+		if fn == sn {
+			nodes = append(nodes, nodeParts[0])
+			return nodes, nil
+		}
+		// if they put 01-4 this is an error
+		if len(fn) != len(sn) {
+			eMsg := fmt.Sprintf("Invalid noderange: %s\n", e)
+			return nodes, errors.New(eMsg)
+		}
+
+		num1, _ := strconv.Atoi(fn)
+		num2, _ := strconv.Atoi(sn)
+		if num1 > num2 {
+			eMsg := fmt.Sprintf("Invalid noderange: %s", e)
+			return nodes, errors.New(eMsg)
+		}
+		for i := num1; i <= num2; i++ {
+			nodes = append(nodes, fmt.Sprintf("%s%0[2]*[3]d", fPrefix, len(fn), i))
+		}
+	} else {
+		nodes = append(nodes, e)
+	}
+	return nodes, nil
+}
+
 // given a bunch of nodes get them from
 func findNodesInList(elem []string, nodelist []server.Server) ([]server.Server, error) {
 	var returnNodes []server.Server
+
 	for _, e := range elem {
 		found := false
 		for _, allNode := range nodelist {
@@ -49,7 +127,7 @@ func findNodesInList(elem []string, nodelist []server.Server) ([]server.Server, 
 			}
 		}
 		if !found {
-			rm := fmt.Sprintf("findNodesInList: %s not found in nodelist", e)
+			rm := fmt.Sprintf("%s not found in nodelist %s", e, configFiles[0])
 			return nil, errors.New(rm)
 		}
 	}

@@ -38,6 +38,18 @@ func TestNodesFromConfig(t *testing.T) {
 	}
 }
 
+func TestNodesFromConfigWithDash(t *testing.T) {
+	configFiles = []string{"test_data/goodlist"}
+
+	nodes, err := GetNodeRange("node01-node04")
+	if err != nil {
+		t.Errorf("Error getting node range: %v", err)
+	}
+	if len(nodes) != 4 {
+		t.Errorf("GetNodeRange(node01-node04) should return 4 nodes but returned: %d", len(nodes))
+	}
+}
+
 func TestBadConfig(t *testing.T) {
 	configFiles = []string{"test_data/doesnotexist"}
 	_, err := nodesFromConfig()
@@ -53,29 +65,6 @@ func TestBadIPaddress(t *testing.T) {
 		t.Errorf("Bad IP address not detected")
 	}
 }
-
-/*
-func TestNodeRange(t *testing.T) {
-	var tests = []struct {
-		input string
-		want  []server.Server
-	}{
-		{"node01-node02",
-			[]server.Server{
-				{"node01", "10.93.234.10", "bob", "~/.ssh/was"},
-				{"node02", "10.93.234.11", "bob", "~/.ssh/was"},
-			},
-		},
-	}
-
-	for _, test := range tests {
-		got, err := GetNodeRange(test);
-		if got != test.want {
-			t.Errorf("GetNodeRange(%q) = %v", test.input, got)
-		}
-	}
-}
-*/
 
 // Examples
 //func ExampleNodeRange
