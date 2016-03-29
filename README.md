@@ -2,7 +2,9 @@
 
 Execute Parallel SSH Commands to Multiple Hosts
 
-## NOT READY FOR USE YET
+## Status
+Runs commands pretty well, noderange is still going but not 100%
+More noderange syntax will be added in the future. 
 
 ## History
 
