@@ -55,6 +55,7 @@ or you can use:
 ```
 psh node[01-55] date
 ```
+Right now something like: ```node[01-05]-node07``` doesn't work. 
 
 #### Exclusions
 
