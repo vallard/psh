@@ -61,12 +61,11 @@ func nodesFromDash(e string) ([]string, error) {
 	//rb := regexp.MustCompile("\[\d+-\d+\]")
 	rb := regexp.MustCompile("\\[\\d+[-:]\\d+\\]")
 	if rb.MatchString(e) {
-		fmt.Printf("%s matches !\n", e)
 		suffix := rb.FindString(e)
 		pI := rb.FindStringSubmatchIndex(e)
 		prefix := e[:pI[0]]
-		fmt.Printf("%s prefix\n", prefix)
-		fmt.Printf("%s suffix\n", suffix)
+		//fmt.Printf("%s prefix\n", prefix)
+		//fmt.Printf("%s suffix\n", suffix)
 		// now strip suffix from [001-003]
 		first, last := stripSuffixFromBracketRange(suffix)
 		//fmt.Println(first, last)
@@ -102,19 +101,20 @@ func nodesFromDash(e string) ([]string, error) {
 			eMsg := fmt.Sprintf("Invalid noderange: %s\n", e)
 			return nodes, errors.New(eMsg)
 		}
-		nodes, err := makeNodesFromSuffixPoints(nodeParts[0], fn, sn)
+		nodes, err := makeNodesFromSuffixPoints(sPrefix, fn, sn)
 		return nodes, err
 	}
 	nodes = append(nodes, e)
 	return nodes, nil
 }
 
-// once we have node, 01, 99 then we make all the nodes together.
+// makeNodesFromSuffixPoints takes in the prefix "node" and the first and last integers
+// as strings: "01" and "04" then gives a list of nodes: node01, node02, node03, node04
 func makeNodesFromSuffixPoints(prefix string, fn string, sn string) ([]string, error) {
 	var nodes []string
 
 	if fn == "" || sn == "" {
-		eMsg := fmt.Sprintf("Invalid noderange: %s\n", e)
+		eMsg := fmt.Sprintf("Invalid noderange: %s%s-%s%s\n", prefix, fn, prefix, sn)
 		return nodes, errors.New(eMsg)
 	}
 	// if for some reason they said node1-node1 return one node.
@@ -125,14 +125,14 @@ func makeNodesFromSuffixPoints(prefix string, fn string, sn string) ([]string, e
 	}
 	// if they put 01-4 this is an error
 	if len(fn) != len(sn) {
-		eMsg := fmt.Sprintf("Invalid noderange: %s\n", e)
+		eMsg := fmt.Sprintf("Invalid noderange: %s%s-%s%s\n", prefix, fn, prefix, sn)
 		return nodes, errors.New(eMsg)
 	}
 
 	num1, _ := strconv.Atoi(fn)
 	num2, _ := strconv.Atoi(sn)
 	if num1 > num2 {
-		eMsg := fmt.Sprintf("Invalid noderange: %s", e)
+		eMsg := fmt.Sprintf("Invalid noderange: %s%s-%s%s\n", prefix, fn, prefix, sn)
 		return nodes, errors.New(eMsg)
 	}
 
