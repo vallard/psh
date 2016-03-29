@@ -41,12 +41,23 @@ func TestNodesFromConfig(t *testing.T) {
 func TestNodesFromConfigWithDash(t *testing.T) {
 	configFiles = []string{"test_data/goodlist"}
 
-	nodes, err := GetNodeRange("node01-node04")
-	if err != nil {
-		t.Errorf("Error getting node range: %v", err)
+	var tests = []struct {
+		input string
+		want  int
+	}{
+		{"node01", 1},
+		{"node01-node04", 4},
+		{"node01-node02,node04", 3},
+		{"node[01-04]", 4},
 	}
-	if len(nodes) != 4 {
-		t.Errorf("GetNodeRange(node01-node04) should return 4 nodes but returned: %d", len(nodes))
+	for _, p := range tests {
+		nodes, err := GetNodeRange(p.input)
+		if err != nil {
+			t.Errorf("Error getting node range: %v", err)
+		}
+		if len(nodes) != p.want {
+			t.Errorf("GetNodeRange(%s) should return %d nodes but returned: %d", p.input, p.want, len(nodes))
+		}
 	}
 }
 

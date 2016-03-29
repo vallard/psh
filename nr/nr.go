@@ -32,8 +32,8 @@ func GetNodeRange(nr string) ([]server.Server, error) {
 
 	// first seperate by commas
 	elems := strings.Split(nr, ",")
-	// next expand range with -, eg: node01-node99
 	var telems []string
+	// go through each of the comma separated values and further refine.
 	for _, e := range elems {
 		newRange, err := nodesFromDash(e)
 		//fmt.Println(elems)
@@ -56,6 +56,25 @@ func GetNodeRange(nr string) ([]server.Server, error) {
 // https://sourceforge.net/p/xcat/xcat-core/ci/master/tree/perl-xCAT/xCAT/NodeRange.pm
 func nodesFromDash(e string) ([]string, error) {
 	var nodes []string
+
+	// match node[01-04]
+	//rb := regexp.MustCompile("\[\d+-\d+\]")
+	rb := regexp.MustCompile("\\[\\d+[-:]\\d+\\]")
+	if rb.MatchString(e) {
+		fmt.Printf("%s matches !\n", e)
+		suffix := rb.FindString(e)
+		pI := rb.FindStringSubmatchIndex(e)
+		prefix := e[:pI[0]]
+		fmt.Printf("%s prefix\n", prefix)
+		fmt.Printf("%s suffix\n", suffix)
+		// now strip suffix from [001-003]
+		first, last := stripSuffixFromBracketRange(suffix)
+		//fmt.Println(first, last)
+		nodes, err := makeNodesFromSuffixPoints(prefix, first, last)
+
+		return nodes, err
+	}
+	// do we support node[01-02]-node[04-06] ?  Legal, but seems crazy.
 	// m/[-:]/
 	r := regexp.MustCompile("[-:]")
 	if r.MatchString(e) {
@@ -83,35 +102,45 @@ func nodesFromDash(e string) ([]string, error) {
 			eMsg := fmt.Sprintf("Invalid noderange: %s\n", e)
 			return nodes, errors.New(eMsg)
 		}
-		//prefix := nodeParts[0][
-		// TODO: add support for n20r01-n21-r40
-		if fn == "" || sn == "" {
-			eMsg := fmt.Sprintf("Invalid noderange: %s\n", e)
-			return nodes, errors.New(eMsg)
-		}
-		// if for some reason they said node1-node1 return one node.
-		if fn == sn {
-			nodes = append(nodes, nodeParts[0])
-			return nodes, nil
-		}
-		// if they put 01-4 this is an error
-		if len(fn) != len(sn) {
-			eMsg := fmt.Sprintf("Invalid noderange: %s\n", e)
-			return nodes, errors.New(eMsg)
-		}
-
-		num1, _ := strconv.Atoi(fn)
-		num2, _ := strconv.Atoi(sn)
-		if num1 > num2 {
-			eMsg := fmt.Sprintf("Invalid noderange: %s", e)
-			return nodes, errors.New(eMsg)
-		}
-		for i := num1; i <= num2; i++ {
-			nodes = append(nodes, fmt.Sprintf("%s%0[2]*[3]d", fPrefix, len(fn), i))
-		}
-	} else {
-		nodes = append(nodes, e)
+		nodes, err := makeNodesFromSuffixPoints(nodeParts[0], fn, sn)
+		return nodes, err
 	}
+	nodes = append(nodes, e)
+	return nodes, nil
+}
+
+// once we have node, 01, 99 then we make all the nodes together.
+func makeNodesFromSuffixPoints(prefix string, fn string, sn string) ([]string, error) {
+	var nodes []string
+
+	if fn == "" || sn == "" {
+		eMsg := fmt.Sprintf("Invalid noderange: %s\n", e)
+		return nodes, errors.New(eMsg)
+	}
+	// if for some reason they said node1-node1 return one node.
+	if fn == sn {
+		n := fmt.Sprintf("%s%s", prefix, fn)
+		nodes = append(nodes, n)
+		return nodes, nil
+	}
+	// if they put 01-4 this is an error
+	if len(fn) != len(sn) {
+		eMsg := fmt.Sprintf("Invalid noderange: %s\n", e)
+		return nodes, errors.New(eMsg)
+	}
+
+	num1, _ := strconv.Atoi(fn)
+	num2, _ := strconv.Atoi(sn)
+	if num1 > num2 {
+		eMsg := fmt.Sprintf("Invalid noderange: %s", e)
+		return nodes, errors.New(eMsg)
+	}
+
+	for i := num1; i <= num2; i++ {
+		nodes = append(nodes, fmt.Sprintf("%s%0[2]*[3]d", prefix, len(fn), i))
+	}
+
+	//nodes = append(nodes, e)
 	return nodes, nil
 }
 
@@ -209,4 +238,11 @@ func validIP4(ipAddress string) bool {
 		return true
 	}
 	return false
+}
+
+func stripSuffixFromBracketRange(s string) (string, string) {
+	re := regexp.MustCompile("(?P<first>[0-9]+)-(?P<last>[0-9]+)")
+	data := re.FindStringSubmatch(s)
+	//fmt.Printf("first: %s, last: %s", data[1], data[2])
+	return data[1], data[2]
 }
