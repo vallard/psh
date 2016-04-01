@@ -1,17 +1,22 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
+	"sync"
 
 	"golang.org/x/crypto/ssh"
 
 	"github.com/vallard/psh/nr"
 	"github.com/vallard/psh/server"
 )
+
+const maxSSHSessions int = 20
+
+var wg sync.WaitGroup
 
 func errorFunction(errMessage string) {
 	fmt.Printf("%s\n", errMessage)
@@ -38,19 +43,20 @@ func main() {
 	// open the file for ssh stuff.
 	cmd := getCommand(os.Args[2:])
 	//fmt.Printf("Running command: %s\n", cmd)
+	ch := make(chan string, maxSSHSessions)
 
-	ch := make(chan string)
+	wg.Add(len(nodes))
 	for _, server := range nodes {
-		//fmt.Println(server.Host)
 		go runcmd(server, cmd, ch)
 	}
-
-	for range nodes {
+	/*for range nodes {
 		fmt.Print(<-ch)
-	}
+	}*/
+	wg.Wait()
 }
 
 func runcmd(server server.Server, cmd string, ch chan<- string) {
+	defer wg.Done()
 	sshConfig := &ssh.ClientConfig{
 		User: server.User,
 		Auth: []ssh.AuthMethod{
@@ -80,24 +86,11 @@ func runcmd(server server.Server, cmd string, ch chan<- string) {
 			ssh.TTY_OP_ISPEED: 14400,
 			ssh.TTY_OP_OSPEED: 14400,
 		}
-			if err = session.RequestPty("xterm", 80, 40, modes); err != nil {
-				session.Close()
-				ch <- fmt.Sprintf("request for pseudo terminal failed: %s", err)
-				return
-			}
+		if err = session.RequestPty("xterm", 80, 40, modes); err != nil {
+			ch <- fmt.Sprintf("request for pseudo terminal failed: %s", err)
+			return
+		}
 	*/
-	var stdoutBuff bytes.Buffer
-	//stdout, err := session.StdoutPipe()
-	session.Stdout = &stdoutBuff
-
-	// copy pipe stuff
-	/*stdin, err := session.StdinPipe()
-	if err != nil {
-		//ch <- fmt.Errorf("Unable to setup stdin for session: %v", err)
-		ch <- fmt.Sprintf("Unable to setup stdin for session: %v", err)
-		return
-	}
-	go io.Copy(stdin, os.Stdin)
 
 	stdout, err := session.StdoutPipe()
 	if err != nil {
@@ -105,7 +98,6 @@ func runcmd(server server.Server, cmd string, ch chan<- string) {
 		ch <- fmt.Sprintf("Unable to setup stdout for session: %v", err)
 		return
 	}
-	go io.Copy(os.Stdout, stdout)
 
 	stderr, err := session.StderrPipe()
 	if err != nil {
@@ -113,15 +105,32 @@ func runcmd(server server.Server, cmd string, ch chan<- string) {
 		ch <- fmt.Sprintf("Unable to setup stderr for session: %v", err)
 		return
 	}
-	go io.Copy(os.Stderr, stderr)
-	*/
-	//log.Printf("Running command on %s", server.IP)
+
 	err = session.Run(cmd)
 	if err != nil {
-		ch <- fmt.Sprintf("Unable to setup stderr for session: %v", err)
-	} else {
-		ch <- server.Host + ": " + stdoutBuff.String()
+		// might need to do something here...
+		//fmt.Printf("%s: %v\n", err)
+		//return
 	}
+
+	// check the stdout for data and display.
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		fmt.Printf("%s: %s\n", server.Host, scanner.Text())
+	}
+	if err = scanner.Err(); err != nil {
+		fmt.Printf("%s: %v\n", server.Host, err)
+	}
+
+	// check the error output for errors.
+	errScanner := bufio.NewScanner(stderr)
+	for errScanner.Scan() {
+		fmt.Printf("%s: %s\n", server.Host, errScanner.Text())
+	}
+	if err = errScanner.Err(); err != nil {
+		fmt.Printf("%s: %v\n", server.Host, err)
+	}
+
 	return
 }
 
