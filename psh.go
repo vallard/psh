@@ -57,10 +57,15 @@ func main() {
 
 func runcmd(server server.Server, cmd string, ch chan<- string) {
 	defer wg.Done()
+	auth := PublicKeyFile(server.Key)
+	if auth == nil {
+		fmt.Println("Invalid server key")
+		return
+	}
 	sshConfig := &ssh.ClientConfig{
 		User: server.User,
 		Auth: []ssh.AuthMethod{
-			PublicKeyFile(server.Key),
+			auth,
 		},
 	}
 
@@ -145,15 +150,19 @@ func getServerAndPort(server server.Server) string {
 // get the key file. cred: http://blog.ralch.com/tutorial/golang-ssh-connection/
 func PublicKeyFile(file string) ssh.AuthMethod {
 	file = nr.ExpandShell(file)
+	fmt.Println("File", file)
 	buffer, err := ioutil.ReadFile(file)
 	if err != nil {
+		fmt.Printf("couldn't read file: %s\n", file)
 		return nil
 	}
 
 	key, err := ssh.ParsePrivateKey(buffer)
 	if err != nil {
+		fmt.Printf("couldn't parse file: %s\n", file)
 		return nil
 	}
+
 	return ssh.PublicKeys(key)
 }
 

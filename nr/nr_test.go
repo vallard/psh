@@ -40,11 +40,13 @@ func TestNodesFromConfig(t *testing.T) {
 
 func TestNodesFromConfigWithDash(t *testing.T) {
 	configFiles = []string{"test_data/goodlist"}
+	//{"node[01-04],-node02", 3},
 
 	var tests = []struct {
 		input string
 		want  int
 	}{
+		{"", 4},
 		{"node01", 1},
 		{"node01-node04", 4},
 		{"node01-node02,node04", 3},

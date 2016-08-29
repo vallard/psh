@@ -57,6 +57,7 @@ func GetNodeRange(nr string) ([]server.Server, error) {
 func nodesFromDash(e string) ([]string, error) {
 	var nodes []string
 
+	//minusN := regexp.MustCompile("^-")
 	// match node[01-04]
 	//rb := regexp.MustCompile("\[\d+-\d+\]")
 	rb := regexp.MustCompile("\\[\\d+[-:]\\d+\\]")
@@ -148,6 +149,10 @@ func makeNodesFromSuffixPoints(prefix string, fn string, sn string) ([]string, e
 func findNodesInList(elem []string, nodelist []server.Server) ([]server.Server, error) {
 	var returnNodes []server.Server
 
+	// if the first element is an empty string, then return everything.
+	if elem[0] == "" {
+		return nodelist, nil
+	}
 	for _, e := range elem {
 		found := false
 		for _, allNode := range nodelist {
